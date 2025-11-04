@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wiejaya Apps - Kanal Berita</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+
+    <style>
+        /* Custom styles and animations */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0a0a;
+            color: #e2e8f0;
+        }
+        .navbar-text-anim {
+            transition: transform 0.3s ease-in-out;
+        }
+        .glass-effect {
+            background: rgba(23, 23, 23, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .card-anim {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .card-anim.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .modal {
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+        .gradient-text {
+            background: linear-gradient(90deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        .page-container {
+            animation: fadeIn 0.7s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .search-input {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'%3E%3C/circle%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'%3E%3C/line%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: 1rem center;
+            padding-left: 3.5rem;
+        }
+        #pdf-viewer-container canvas {
+            display: block;
+            margin: 0 auto;
+            margin-bottom: 8px; /* Spacing between pages */
+            max-width: 100%;
+            height: auto;
+        }
+        .admin-only {
+            display: none; /* Hidden by default */
+        }
+        .admin-card-controls {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            display: flex;
+            gap: 0.5rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+        .group:hover .admin-card-controls {
+            opacity: 1;
+        }
+        .form-input {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            color: #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            width: 100%;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #38bdf8;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4);
+        }
+        .file-upload-label {
+            border: 2px dashed #475569;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .file-upload-label:hover {
+            border-color: #38bdf8;
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+
+    <!-- Header / Navbar -->
+    <header id="navbar" class="glass-effect sticky top-0 z-50 transition-all duration-300">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <!-- Logo and Title -->
+            <a href="#home" class="flex items-center gap-3 nav-link">
+                <div class="logo-container w-10 h-10 flex items-center justify-center">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" class="stroke-cyan-400" stroke-width="1.5"/>
+                        <path d="M2 7L12 12M12 22V12M22 7L12 12M17 4.5L7 9.5" class="stroke-indigo-400" stroke-width="1.5"/>
+                    </svg>
+                </div>
+                <span class="text-xl font-bold text-slate-100 hidden sm:block">Wiejaya Apps</span>
+            </a>
+
+            <!-- Navigation Links -->
+            <div class="flex items-center gap-6 md:gap-8">
+                <a href="#home" id="nav-home" class="nav-link flex items-center gap-2 text-slate-300 hover:text-cyan-400 transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span class="navbar-text-anim hidden md:inline">Beranda</span>
+                </a>
+                <a href="#search" id="nav-search" class="nav-link flex items-center gap-2 text-slate-300 hover:text-cyan-400 transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    <span class="navbar-text-anim hidden md:inline">Search</span>
+                </a>
+                <a href="#library" id="nav-library" class="nav-link flex items-center gap-2 text-slate-300 hover:text-cyan-400 transition-colors duration-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    <span class="navbar-text-anim hidden md:inline">Library</span>
+                </a>
+                <div class="h-6 w-px bg-slate-600"></div>
+                <button id="profile-button" class="rounded-full w-10 h-10 overflow-hidden border-2 border-slate-600 hover:border-cyan-400 transition-all duration-300 transform hover:scale-110 flex items-center justify-center">
+                    <!-- Profile picture will be injected here by JS -->
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content">
+        <!-- Home Page -->
+        <div id="home-page" class="page-container">
+            <section class="min-h-[60vh] flex items-center justify-center text-center relative overflow-hidden px-4">
+                <div class="absolute inset-0 bg-grid-slate-800/[0.2] [mask-image:linear-gradient(to_bottom,white_5%,transparent_80%)]"></div>
+                <div class="z-10">
+                    <h1 class="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tighter mb-4">
+                        Wawasan Global, <span class="gradient-text">Perspektif Lokal.</span>
+                    </h1>
+                    <p class="text-lg md:text-xl max-w-3xl mx-auto text-slate-400">
+                        Menyajikan berita perbankan dan finansial terkini dari seluruh dunia dengan analisis mendalam yang relevan untuk Anda.
+                    </p>
+                </div>
+            </section>
+
+            <div class="container mx-auto px-6 py-12">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-slate-100">Berita Utama</h2>
+                    <button id="add-article-btn" class="admin-only bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Tambah Artikel
+                    </button>
+                </div>
+                <div id="news-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    <!-- News cards will be injected here by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Page -->
+        <div id="search-page" class="page-container hidden">
+            <div class="container mx-auto px-6 py-12">
+                 <h2 class="text-3xl md:text-4xl font-bold mb-2 text-center text-slate-100">Temukan Wawasan Anda</h2>
+                 <p class="text-slate-400 text-center mb-10">Ketik untuk mencari berita atau artikel secara instan.</p>
+                 <div class="max-w-2xl mx-auto mb-12">
+                    <input type="text" id="search-input" placeholder="Cari topik seperti 'Fintech', 'Regulasi', atau 'ESG'..." class="search-input w-full p-4 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all duration-300 text-lg">
+                 </div>
+                 <div id="search-results-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                    <!-- Search results will be injected here by JS -->
+                </div>
+                <div id="no-results" class="hidden text-center py-16">
+                    <p class="text-xl text-slate-400">Tidak ada hasil yang ditemukan.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Library Page -->
+        <div id="library-page" class="page-container hidden">
+             <div class="container mx-auto px-6 py-12">
+                <div class="text-center mb-10">
+                    <h2 class="text-3xl md:text-4xl font-bold mb-2 text-slate-100">Pustaka Digital</h2>
+                    <p class="text-slate-400">Kumpulan laporan, jurnal, dan dokumen penting seputar dunia finansial.</p>
+                </div>
+                 <div class="flex justify-center mb-10">
+                    <button id="add-library-btn" class="admin-only bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Tambah Pustaka
+                    </button>
+                 </div>
+                 <div id="library-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                    <!-- Library items will be injected here by JS -->
+                 </div>
+             </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-8 mt-12 border-t border-slate-800">
+        <p class="text-slate-500">made with <span class="text-red-500">&hearts;</span> by wiejaya</p>
+    </footer>
+
+    <!-- All Modals -->
+
+    <!-- Profile Pop-up Modal -->
+    <div id="profile-modal" class="modal fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4 opacity-0 pointer-events-none -translate-y-4">
+        <div id="profile-modal-content" class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-6 w-full max-w-md text-center transform scale-95">
+            <h3 id="greeting" class="text-2xl font-semibold mb-2"></h3>
+            <p id="profile-name" class="text-slate-400 mb-6"></p>
+            <div id="avatar-selection-container">
+                <p class="text-slate-300 mb-4 font-medium">Pilih Avatar Anda</p>
+                <div id="avatar-grid" class="grid grid-cols-3 gap-4 mb-4"></div>
+            </div>
+            <div class="mt-6 flex flex-col gap-3">
+                <button id="login-btn" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Login</button>
+                <button id="logout-btn" class="admin-only w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors">Logout</button>
+                <button id="close-profile-modal" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg transition-colors">Tutup</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal fixed inset-0 bg-black bg-opacity-70 z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none -translate-y-4">
+        <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-8 w-full max-w-sm transform scale-95 space-y-6">
+            <h3 class="text-2xl font-bold text-center text-white">Admin Login</h3>
+            <form id="login-form">
+                <div class="space-y-4">
+                    <input type="text" id="username" placeholder="Username" class="form-input" required>
+                    <input type="password" id="password" placeholder="Password" class="form-input" required>
+                </div>
+                <p id="login-error" class="text-red-400 text-sm mt-2 h-4"></p>
+                <button type="submit" class="mt-4 w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 px-4 rounded-lg transition-colors duration-300">Masuk</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Article Modal -->
+    <div id="article-form-modal" class="modal fixed inset-0 bg-black bg-opacity-70 z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none -translate-y-4">
+        <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-8 w-full max-w-2xl transform scale-95 space-y-6">
+            <h3 id="article-form-title" class="text-2xl font-bold text-white">Tambah Artikel Baru</h3>
+            <form id="article-form" class="space-y-4">
+                <input type="hidden" id="article-id">
+                <input type="text" id="article-title" placeholder="Judul Artikel" class="form-input" required>
+                <input type="text" id="article-category" placeholder="Kategori" class="form-input" required>
+                <input type="text" id="article-img" placeholder="URL Gambar (e.g., https://placehold.co/600x400/...)" class="form-input" required>
+                <textarea id="article-fullText" placeholder="Isi Artikel Lengkap" class="form-input h-32" required></textarea>
+                <div class="flex gap-4">
+                    <button type="button" id="cancel-article-form" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg transition-colors">Batal</button>
+                    <button type="submit" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Library Modal -->
+     <div id="library-form-modal" class="modal fixed inset-0 bg-black bg-opacity-70 z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none -translate-y-4">
+        <div class="modal-content bg-slate-900 border border-slate-700 rounded-xl p-8 w-full max-w-2xl transform scale-95 space-y-6">
+            <h3 id="library-form-title" class="text-2xl font-bold text-white">Tambah Pustaka Baru</h3>
+            <form id="library-form" class="space-y-4">
+                <input type="hidden" id="library-id">
+                <input type="text" id="library-title" placeholder="Judul Dokumen" class="form-input" required>
+                <input type="text" id="library-author" placeholder="Penulis / Penerbit" class="form-input" required>
+                 <div>
+                    <input type="text" id="library-pdfUrl" placeholder="URL PDF Dokumen" class="form-input" required>
+                    <p class="text-xs text-slate-500 mt-2">Untuk demonstrasi, gunakan URL PDF yang mendukung CORS, seperti dari Mozilla. </p>
+                 </div>
+                <div class="flex gap-4">
+                    <button type="button" id="cancel-library-form" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg transition-colors">Batal</button>
+                    <button type="submit" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Article Detail Modal (User View) -->
+    <div id="article-modal" class="modal fixed inset-0 bg-black bg-opacity-80 z-[60] flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div id="article-modal-content" class="modal-content bg-slate-900 rounded-xl w-full max-w-3xl h-[90vh] flex flex-col transform scale-95 overflow-hidden">
+             <div class="relative">
+                <img id="article-modal-image" src="" alt="Article Image" class="w-full h-64 object-cover">
+                <button id="close-article-modal" class="absolute top-4 right-4 bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-opacity-75 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+             </div>
+             <div class="p-8 overflow-y-auto">
+                <h2 id="article-modal-title" class="text-3xl font-bold mb-4"></h2>
+                <p id="article-modal-category" class="text-cyan-400 font-semibold mb-4"></p>
+                <div id="article-modal-body" class="text-slate-300 leading-relaxed space-y-4"></div>
+             </div>
+        </div>
+    </div>
+
+    <!-- PDF Viewer Modal (User View) -->
+    <div id="pdf-modal" class="modal fixed inset-0 bg-black bg-opacity-80 z-[70] flex items-center justify-center p-4 opacity-0 pointer-events-none">
+        <div id="pdf-modal-content" class="modal-content bg-slate-900 rounded-xl w-full max-w-4xl h-[90vh] flex flex-col transform scale-95 overflow-hidden">
+             <div class="flex justify-between items-center p-4 border-b border-slate-700">
+                <h3 id="pdf-modal-title" class="font-bold text-lg text-slate-200 truncate"></h3>
+                <button id="close-pdf-modal" class="text-slate-400 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+             </div>
+             <div id="pdf-viewer-container" class="flex-grow p-4 overflow-y-auto bg-slate-800">
+                <div id="pdf-loader" class="flex items-center justify-center h-full">
+                    <p class="text-slate-400">Memuat dokumen...</p>
+                </div>
+                <!-- PDF pages will be rendered here as canvas elements -->
+             </div>
+        </div>
+    </div>
+
+
+<script>
+// IFFE to encapsulate scope
+(function () {
+    // --- State Management ---
+    let state = {
+        isLoggedIn: false,
+        newsData: [],
+        libraryData: []
+    };
+
+    // --- Admin Credentials ---
+    const ADMIN_USERNAME = 'admin';
+    const ADMIN_PASSWORD = 'wiejaya2025';
+
+    // --- DOM Elements ---
+    const DOMElements = {
+        navbar: document.getElementById('navbar'),
+        profileButton: document.getElementById('profile-button'),
+        newsGrid: document.getElementById('news-grid'),
+        libraryGrid: document.getElementById('library-grid'),
+        searchResultsGrid: document.getElementById('search-results-grid'),
+        searchInput: document.getElementById('search-input'),
+        noResults: document.getElementById('no-results'),
+        
+        // Modals
+        profileModal: {
+            modal: document.getElementById('profile-modal'),
+            content: document.getElementById('profile-modal-content'),
+            greeting: document.getElementById('greeting'),
+            name: document.getElementById('profile-name'),
+            avatarContainer: document.getElementById('avatar-selection-container'),
+            avatarGrid: document.getElementById('avatar-grid'),
+            loginBtn: document.getElementById('login-btn'),
+            logoutBtn: document.getElementById('logout-btn'),
+            closeBtn: document.getElementById('close-profile-modal'),
+        },
+        loginModal: {
+            modal: document.getElementById('login-modal'),
+            form: document.getElementById('login-form'),
+            usernameInput: document.getElementById('username'),
+            passwordInput: document.getElementById('password'),
+            errorMsg: document.getElementById('login-error'),
+        },
+        articleFormModal: {
+            modal: document.getElementById('article-form-modal'),
+            form: document.getElementById('article-form'),
+            title: document.getElementById('article-form-title'),
+            idInput: document.getElementById('article-id'),
+            titleInput: document.getElementById('article-title'),
+            categoryInput: document.getElementById('article-category'),
+            imgInput: document.getElementById('article-img'),
+            fullTextInput: document.getElementById('article-fullText'),
+            cancelBtn: document.getElementById('cancel-article-form'),
+        },
+        libraryFormModal: {
+            modal: document.getElementById('library-form-modal'),
+            form: document.getElementById('library-form'),
+            title: document.getElementById('library-form-title'),
+            idInput: document.getElementById('library-id'),
+            titleInput: document.getElementById('library-title'),
+            authorInput: document.getElementById('library-author'),
+            pdfUrlInput: document.getElementById('library-pdfUrl'),
+            cancelBtn: document.getElementById('cancel-library-form'),
+        },
+        articleDetailModal: {
+            modal: document.getElementById('article-modal'),
+            content: document.getElementById('article-modal-content'),
+            closeBtn: document.getElementById('close-article-modal'),
+            image: document.getElementById('article-modal-image'),
+            title: document.getElementById('article-modal-title'),
+            category: document.getElementById('article-modal-category'),
+            body: document.getElementById('article-modal-body'),
+        },
+        pdfModal: {
+            modal: document.getElementById('pdf-modal'),
+            content: document.getElementById('pdf-modal-content'),
+            closeBtn: document.getElementById('close-pdf-modal'),
+            title: document.getElementById('pdf-modal-title'),
+            viewerContainer: document.getElementById('pdf-viewer-container'),
+            loader: document.getElementById('pdf-loader'),
+        },
+
+        // Admin Buttons
+        addArticleBtn: document.getElementById('add-article-btn'),
+        addLibraryBtn: document.getElementById('add-library-btn'),
+
+        // Navigation
+        navLinks: document.querySelectorAll('.nav-link'),
+        pages: document.querySelectorAll('.page-container'),
+    };
+    
+    // --- Data ---
+    const initialData = {
+        avatars: {
+            'cowo-kantoran': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_1" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_1)"><rect width="36" height="36" fill="#ff7d10"></rect><rect x="0" y="0" width="36" height="36" transform="translate(4 4) rotate(240 18 18) scale(1.2)" fill="#013d2c" rx="36"></rect><g transform="translate(3 -2) rotate(0 18 18)"><path d="M15 19c2 1 4 1 6 0" stroke="#FFFFFF" fill="none" stroke-linecap="round"></path><rect x="11" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect><rect x="23" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect></g></g></svg>`,
+            'cewe-kantoran': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_2" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_2)"><rect width="36" height="36" fill="#733833"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 0) rotate(20 18 18) scale(1.1)" fill="#e6a861" rx="6"></rect><g transform="translate(-2 6) rotate(-10 18 18)"><path d="M15 21c2 1 4 1 6 0" stroke="#000000" fill="none" stroke-linecap="round"></path><rect x="13" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect><rect x="21" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect></g></g></svg>`,
+            'cowo-pendaki': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_3" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_3)"><rect width="36" height="36" fill="#405059"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 0) rotate(328 18 18) scale(1.2)" fill="#3a604a" rx="36"></rect><g transform="translate(0 0) rotate(0 18 18)"><path d="M13,21 a4,2 0 0,0 10,0" fill="#FFFFFF"></path><circle cx="15" cy="15" r="1" fill="#FFFFFF"></circle><circle cx="21" cy="15" r="1" fill="#FFFFFF"></circle></g></g></svg>`,
+            'cewe-pendaki': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_4" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_4)"><rect width="36" height="36" fill="#88a2a6"></rect><rect x="0" y="0" width="36" height="36" transform="translate(5 5) rotate(340 18 18) scale(1.2)" fill="#382e2c" rx="6"></rect><g transform="translate(-4 4) rotate(10 18 18)"><path d="M15 20c2 1 4 1 6 0" stroke="#FFFFFF" fill="none" stroke-linecap="round"></path><rect x="12" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect><rect x="22" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect></g></g></svg>`,
+            'bunga': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_5" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_5)"><rect width="36" height="36" fill="#f0e2b6"></rect><rect x="0" y="0" width="36" height="36" transform="translate(9 -5) rotate(215 18 18) scale(1.2)" fill="#f0983e" rx="36"></rect><g transform="translate(4.5 -3.5) rotate(0 18 18)"><path d="M15 21c2 1 4 1 6 0" stroke="#000000" fill="none" stroke-linecap="round"></path><rect x="14" y="15" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect><rect x="20" y="15" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect></g></g></svg>`,
+            'kucing': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_6" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_6)"><rect width="36" height="36" fill="#b96a45"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 9) rotate(0 18 18) scale(1.2)" fill="#f0e2b6" rx="6"></rect><g transform="translate(0 4.5) rotate(0 18 18)"><path d="M15,19 a1,1 0 0,0 6,0" stroke="#000000" fill="none" stroke-linecap="round"></path><path d="M14,16.5 a0.5,0.5 0 0,0 1,0" fill="#000000"></path><path d="M21,16.5 a0.5,0.5 0 0,0 1,0" fill="#000000"></path></g></g></svg>`
+        },
+        news: [
+            { id: 1, title: "Federal Reserve Hints at Slower Rate Hikes Amid Economic Uncertainty", category: "KEBIJAKAN MONETER", img: "https://placehold.co/600x400/083344/FFFFFF?text=Fed", fullText: "Pejabat Federal Reserve mengindikasikan bahwa laju kenaikan suku bunga dapat melambat dalam beberapa bulan mendatang. Hal ini memberikan kelegaan bagi pasar global, namun ketidakpastian mengenai inflasi masih menjadi perhatian utama para investor dan analis ekonomi. Keputusan ini akan sangat bergantung pada data ekonomi yang masuk dalam beberapa minggu ke depan."},
+            { id: 2, title: "Bank Sentral Eropa Menaikkan Suku Bunga Acuan Sebesar 75 Poin Basis", category: "EROPA", img: "https://placehold.co/600x400/115e59/FFFFFF?text=ECB", fullText: "Bank Sentral Eropa (ECB) mengambil langkah agresif untuk memerangi inflasi yang meroket dengan menaikkan suku bunga acuan sebesar 75 basis poin. Langkah ini, yang terbesar dalam sejarah ECB, menandakan komitmen kuat untuk mengendalikan harga meskipun ada risiko resesi ekonomi di kawasan Euro."},
+            { id: 3, title: "Revolusi Digital Banking: Bagaimana Fintech Mengubah Wajah Perbankan Asia", category: "TEKNOLOGI FINANSIAL", img: "https://placehold.co/600x400/86198f/FFFFFF?text=Fintech", fullText: "Perusahaan teknologi finansial (fintech) di Asia Tenggara terus berinovasi, menawarkan layanan perbankan digital yang lebih mudah diakses dan efisien. Dari pembayaran digital hingga pinjaman online, fintech menantang model bisnis bank tradisional dan mendorong inklusi keuangan di seluruh wilayah."},
+            { id: 4, title: "Dolar AS Menguat Terhadap Mata Uang Utama di Tengah Kekhawatiran Resesi Global", category: "PASAR VALAS", img: "https://placehold.co/600x400/a16207/FFFFFF?text=Dollar", fullText: "Dolar Amerika Serikat mencapai level tertinggi dalam dua dekade terhadap sejumlah mata uang utama dunia. Penguatan ini didorong oleh statusnya sebagai 'safe-haven' di tengah meningkatnya kekhawatiran akan resesi global dan kebijakan moneter ketat dari The Fed."},
+            { id: 5, title: "Skandal Kripto Terbaru Mengguncang Kepercayaan Investor", category: "ASET DIGITAL", img: "https://placehold.co/600x400/be123c/FFFFFF?text=Crypto", fullText: "Runtuhnya salah satu bursa kripto besar telah mengirimkan gelombang kejutan ke seluruh industri aset digital. Insiden ini menyoroti kurangnya regulasi dan perlindungan investor, memicu seruan untuk pengawasan yang lebih ketat dari pemerintah di seluruh dunia."},
+            { id: 6, title: "Perbankan Syariah Menunjukkan Pertumbuhan Tahan Banting di Pasar Berkembang", category: "KEUANGAN SYARIAH", img: "https://placehold.co/600x400/065f46/FFFFFF?text=Syariah", fullText: "Di tengah volatilitas ekonomi global, sektor perbankan syariah menunjukkan pertumbuhan yang stabil dan kuat, terutama di negara-negara dengan populasi Muslim yang besar. Prinsip-prinsip etis dan pembagian risiko menjadi daya tarik utama bagi nasabah dan investor."},
+            { id: 7, title: "China Meluncurkan Uji Coba Yuan Digital Skala Besar di Beberapa Kota", category: "MATA UANG DIGITAL", img: "https://placehold.co/600x400/b91c1c/FFFFFF?text=Yuan", fullText: "Bank Rakyat China (PBOC) memperluas uji coba mata uang digital bank sentral (CBDC), yang dikenal sebagai e-CNY atau Yuan digital. Langkah ini menempatkan China di garis depan dalam perlombaan global untuk meluncurkan mata uang digital nasional, yang berpotensi mengubah sistem pembayaran global."},
+            { id: 8, title: "Investasi ESG (Environmental, Social, and Governance) Menjadi Tren Utama di Wall Street", category: "INVESTASI BERKELANJUTAN", img: "https://placehold.co/600x400/581c87/FFFFFF?text=ESG", fullText: "Investor institusional dan ritel semakin banyak mengalokasikan modal ke perusahaan yang memiliki kinerja lingkungan, sosial, dan tata kelola (ESG) yang kuat. Tren ini mencerminkan pergeseran kesadaran bahwa keberlanjutan adalah kunci untuk kinerja keuangan jangka panjang."},
+            { id: 9, title: "Regulator Inggris Memperketat Aturan 'Buy Now, Pay Later' (BNPL)", category: "REGULASI", img: "https://placehold.co/600x400/9a3412/FFFFFF?text=BNPL", fullText: "Otoritas Jasa Keuangan Inggris (FCA) telah mengumumkan rencana untuk mengatur layanan 'Buy Now, Pay Later' (BNPL) untuk melindungi konsumen dari potensi utang yang tidak terkendali. Aturan baru ini akan menuntut penyedia BNPL untuk melakukan pemeriksaan keterjangkauan yang lebih ketat."},
+            { id: 10, title: "Merger Bank-Bank Raksasa Eropa Menciptakan Kekuatan Finansial Baru", category: "KORPORASI", img: "https://placehold.co/600x400/4a044e/FFFFFF?text=Merger", fullText: "Dua bank investasi terbesar di Eropa telah setuju untuk merger dalam sebuah kesepakatan bernilai miliaran dolar. Konsolidasi ini diharapkan dapat meningkatkan daya saing mereka di panggung global dan menciptakan efisiensi operasional yang signifikan."},
+        ],
+        library: [
+            { id: 1, title: "Trace-Based Just-in-Time Type Specialization for Dynamic Languages", author: "Mozilla Foundation", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 2, title: "The Future of Central Bank Digital Currencies", author: "Bank for International Settlements", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 3, title: "Global Investment Returns Yearbook", author: "Credit Suisse Research Institute", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 4, title: "Understanding the Crypto Asset Market", author: "Financial Stability Board", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 5, title: "ESG Integration in Investment Portfolios", author: "CFA Institute", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 6, title: "The Economic Outlook: March 2024", author: "OECD", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 7, title: "Digital Transformation of Financial Services", author: "World Bank Group", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 8, title: "Islamic Finance Development Report", author: "Islamic Development Bank", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 9, title: "Global Wealth Report 2023", author: "Boston Consulting Group", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+            { id: 10, title: "Cross-Border Payments: A New Landscape", author: "McKinsey & Company", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
+        ]
+    };
+
+    // --- Utility Functions ---
+    const openModal = (modalEl) => {
+        modalEl.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-4');
+        modalEl.querySelector('.modal-content')?.classList.remove('scale-95');
+    };
+    const closeModal = (modalEl) => {
+        modalEl.classList.add('opacity-0', 'pointer-events-none', '-translate-y-4');
+        modalEl.querySelector('.modal-content')?.classList.add('scale-95');
+    };
+
+    // --- UI Rendering Functions ---
+    
+    // Update UI based on login state
+    function updateUIForAuthState() {
+        const adminElements = document.querySelectorAll('.admin-only');
+        const { profileModal: pm } = DOMElements;
+
+        if (state.isLoggedIn) {
+            const greetings = ["Apa kabar, Wijaya?", "Bagaimana harimu, Wijaya?", "Tetap semangat, Wijaya!"];
+            pm.greeting.textContent = greetings[Math.floor(Math.random() * greetings.length)];
+            pm.name.textContent = 'Admin Access';
+            pm.avatarContainer.style.display = 'none';
+            pm.loginBtn.style.display = 'none';
+            pm.logoutBtn.style.display = 'block';
+            adminElements.forEach(el => el.style.display = 'flex');
+        } else {
+            pm.greeting.textContent = getGreetingForUser();
+            pm.name.textContent = 'User';
+            pm.avatarContainer.style.display = 'block';
+            pm.loginBtn.style.display = 'block';
+            pm.logoutBtn.style.display = 'none';
+            adminElements.forEach(el => el.style.display = 'none');
+        }
+    }
+    
+    // Create a single news card
+    function createNewsCard(news) {
+        const card = document.createElement('div');
+        card.className = 'card-anim bg-slate-900 rounded-xl overflow-hidden group border border-slate-800 hover:border-cyan-500/50 transition-all duration-300 transform hover:-translate-y-2 relative';
+        
+        let adminControls = '';
+        if (state.isLoggedIn) {
+            adminControls = `
+                <div class="admin-card-controls">
+                    <button data-id="${news.id}" class="edit-article-btn bg-slate-800 p-2 rounded-full text-cyan-400 hover:bg-cyan-400 hover:text-slate-900 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    </button>
+                    <button data-id="${news.id}" class="delete-article-btn bg-slate-800 p-2 rounded-full text-red-400 hover:bg-red-400 hover:text-slate-900 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `;
+        }
+        
+        card.innerHTML = `
+            ${adminControls}
+            <div class="relative cursor-pointer article-content" data-id="${news.id}">
+                <img src="${news.img}" alt="${news.title}" class="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300">
+                <div class="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+            </div>
+            <div class="p-6">
+                <p class="text-xs font-semibold text-cyan-400 mb-2 tracking-wider uppercase">${news.category}</p>
+                <h3 class="font-bold text-lg text-slate-100 group-hover:text-cyan-300 transition-colors duration-300">${news.title}</h3>
+            </div>
+        `;
+        return card;
+    }
+
+    // Create a single library card
+    function createLibraryCard(item) {
+        const card = document.createElement('div');
+        card.className = 'card-anim flex flex-col justify-between p-6 bg-slate-900 rounded-xl border border-slate-800 hover:border-indigo-500/50 transition-all duration-300 transform hover:-translate-y-2 relative group';
+
+        let adminControls = '';
+        if (state.isLoggedIn) {
+            adminControls = `
+                 <div class="admin-card-controls">
+                    <button data-id="${item.id}" class="edit-library-btn bg-slate-800 p-2 rounded-full text-indigo-400 hover:bg-indigo-400 hover:text-slate-900 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                    </button>
+                    <button data-id="${item.id}" class="delete-library-btn bg-slate-800 p-2 rounded-full text-red-400 hover:bg-red-400 hover:text-slate-900 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `;
+        }
+        
+        card.innerHTML = `
+            ${adminControls}
+            <div class="cursor-pointer library-content" data-id="${item.id}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-4 text-indigo-400"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                <h4 class="font-bold text-slate-100 mb-1">${item.title}</h4>
+                <p class="text-sm text-slate-400">${item.author}</p>
+            </div>
+            <button class="mt-4 text-left text-sm font-semibold text-indigo-400 hover:text-indigo-300 transition-colors library-content" data-id="${item.id}">Baca Dokumen &rarr;</button>
+        `;
+        return card;
+    }
+
+    // Populate grids with data
+    function renderAllGrids() {
+        populateGrid(DOMElements.newsGrid, state.newsData, createNewsCard);
+        populateGrid(DOMElements.searchResultsGrid, state.newsData, createNewsCard);
+        populateGrid(DOMElements.libraryGrid, state.libraryData, createLibraryCard);
+    }
+
+    function populateGrid(gridElement, data, cardCreator) {
+        gridElement.innerHTML = '';
+        data.forEach((item, index) => {
+            const card = cardCreator(item);
+            card.style.transitionDelay = `${index * 50}ms`;
+            gridElement.appendChild(card);
+            setTimeout(() => card.classList.add('is-visible'), 50);
+        });
+    }
+
+    // --- Authentication ---
+    function handleLogin(e) {
+        e.preventDefault();
+        const { usernameInput: u, passwordInput: p, errorMsg } = DOMElements.loginModal;
+        if (u.value === ADMIN_USERNAME && p.value === ADMIN_PASSWORD) {
+            state.isLoggedIn = true;
+            localStorage.setItem('wiejaya_isLoggedIn', 'true');
+            u.value = '';
+            p.value = '';
+            closeModal(DOMElements.loginModal.modal);
+            closeModal(DOMElements.profileModal.modal);
+            updateUIForAuthState();
+            renderAllGrids();
+        } else {
+            errorMsg.textContent = 'Username atau password salah.';
+            setTimeout(() => errorMsg.textContent = '', 3000);
+        }
+    }
+
+    function handleLogout() {
+        state.isLoggedIn = false;
+        localStorage.removeItem('wiejaya_isLoggedIn');
+        closeModal(DOMElements.profileModal.modal);
+        updateUIForAuthState();
+        renderAllGrids();
+    }
+    
+    // --- CRUD Operations ---
+    
+    // Articles
+    function openArticleForm(articleId = null) {
+        const { modal, form, title, idInput, titleInput, categoryInput, imgInput, fullTextInput } = DOMElements.articleFormModal;
+        form.reset();
+        if (articleId) {
+            const article = state.newsData.find(a => a.id === articleId);
+            title.textContent = 'Edit Artikel';
+            idInput.value = article.id;
+            titleInput.value = article.title;
+            categoryInput.value = article.category;
+            imgInput.value = article.img;
+            fullTextInput.value = article.fullText;
+        } else {
+            title.textContent = 'Tambah Artikel Baru';
+            idInput.value = '';
+        }
+        openModal(modal);
+    }
+    
+    function saveArticle(e) {
+        e.preventDefault();
+        const { idInput, titleInput, categoryInput, imgInput, fullTextInput } = DOMElements.articleFormModal;
+        const articleData = {
+            id: idInput.value ? Number(idInput.value) : Date.now(),
+            title: titleInput.value,
+            category: categoryInput.value,
+            img: imgInput.value,
+            fullText: fullTextInput.value
+        };
+
+        if (idInput.value) { // Editing
+            const index = state.newsData.findIndex(a => a.id === articleData.id);
+            state.newsData[index] = articleData;
+        } else { // Adding
+            state.newsData.unshift(articleData);
+        }
+        localStorage.setItem('wiejaya_newsData', JSON.stringify(state.newsData));
+        renderAllGrids();
+        closeModal(DOMElements.articleFormModal.modal);
+    }
+
+    function deleteArticle(articleId) {
+        // NOTE: The confirm() dialog was removed because it can be blocked in some browser environments.
+        // Deletion is now immediate.
+        state.newsData = state.newsData.filter(a => a.id !== articleId);
+        localStorage.setItem('wiejaya_newsData', JSON.stringify(state.newsData));
+        renderAllGrids();
+    }
+    
+    // Library
+    function openLibraryForm(itemId = null) {
+        const { modal, form, title, idInput, titleInput, authorInput, pdfUrlInput } = DOMElements.libraryFormModal;
+        form.reset();
+        if (itemId) {
+            const item = state.libraryData.find(i => i.id === itemId);
+            title.textContent = 'Edit Pustaka';
+            idInput.value = item.id;
+            titleInput.value = item.title;
+            authorInput.value = item.author;
+            pdfUrlInput.value = item.pdfUrl;
+        } else {
+            title.textContent = 'Tambah Pustaka Baru';
+            idInput.value = '';
+        }
+        openModal(modal);
+    }
+
+    function saveLibraryItem(e) {
+        e.preventDefault();
+        const { idInput, titleInput, authorInput, pdfUrlInput } = DOMElements.libraryFormModal;
+        const itemData = {
+            id: idInput.value ? Number(idInput.value) : Date.now(),
+            title: titleInput.value,
+            author: authorInput.value,
+            pdfUrl: pdfUrlInput.value
+        };
+
+        if (idInput.value) { // Editing
+            const index = state.libraryData.findIndex(i => i.id === itemData.id);
+            state.libraryData[index] = itemData;
+        } else { // Adding
+            state.libraryData.unshift(itemData);
+        }
+        localStorage.setItem('wiejaya_libraryData', JSON.stringify(state.libraryData));
+        renderAllGrids();
+        closeModal(DOMElements.libraryFormModal.modal);
+    }
+    
+    function deleteLibraryItem(itemId) {
+        // NOTE: The confirm() dialog was removed because it can be blocked in some browser environments.
+        // Deletion is now immediate.
+        state.libraryData = state.libraryData.filter(i => i.id !== itemId);
+        localStorage.setItem('wiejaya_libraryData', JSON.stringify(state.libraryData));
+        renderAllGrids();
+    }
+
+    // --- Modal Viewers (User-facing) ---
+    function openArticleViewer(articleId) {
+        const article = state.newsData.find(a => a.id === articleId);
+        if (!article) return;
+        const { modal, image, title, category, body } = DOMElements.articleDetailModal;
+        image.src = article.img;
+        title.textContent = article.title;
+        category.textContent = article.category;
+        body.innerHTML = `<p>${article.fullText}</p>`;
+        openModal(modal);
+        document.body.style.overflow = 'hidden';
+    }
+    
+    async function openPdfViewer(itemId) {
+        const item = state.libraryData.find(i => i.id === itemId);
+        if (!item) return;
+        
+        const { modal, title, viewerContainer, loader } = DOMElements.pdfModal;
+        title.textContent = item.title;
+        viewerContainer.innerHTML = '';
+        viewerContainer.appendChild(loader);
+        loader.classList.remove('hidden');
+
+        openModal(modal);
+        document.body.style.overflow = 'hidden';
+
+        try {
+            const { pdfjsLib } = window;
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+            
+            const loadingTask = pdfjsLib.getDocument({
+                url: item.pdfUrl,
+                CMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@2.16.105/cmaps/',
+                cMapPacked: true,
+            });
+
+            const pdf = await loadingTask.promise;
+            loader.classList.add('hidden');
+
+            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                viewerContainer.appendChild(canvas);
+                await page.render({ canvasContext: context, viewport: viewport }).promise;
+            }
+        } catch (error) {
+            console.error('Error loading PDF:', error);
+            loader.classList.add('hidden');
+            viewerContainer.innerHTML = `<div class="flex items-center justify-center h-full"><p class="text-red-400">Gagal memuat dokumen PDF.</p></div>`;
+        }
+    }
+    
+    function closeViewers() {
+        closeModal(DOMElements.articleDetailModal.modal);
+        
+        // Close and cleanup PDF modal
+        closeModal(DOMElements.pdfModal.modal);
+        DOMElements.pdfModal.viewerContainer.innerHTML = '';
+
+        document.body.style.overflow = '';
+    }
+
+    // --- Page Navigation & General UI ---
+    function showPage(pageId) {
+        DOMElements.pages.forEach(p => p.classList.add('hidden'));
+        document.getElementById(pageId)?.classList.remove('hidden');
+
+        DOMElements.navLinks.forEach(link => {
+            link.classList.remove('text-cyan-400');
+            link.classList.add('text-slate-300');
+        });
+        const activeLink = document.querySelector(`a[href="#${pageId.split('-')[0]}"]`);
+        activeLink?.classList.add('text-cyan-400');
+        activeLink?.classList.remove('text-slate-300');
+        window.scrollTo(0, 0);
+    }
+    
+    function getGreetingForUser() {
+        const options = { timeZone: 'Asia/Jakarta', hour: '2-digit', hour12: false };
+        const hour = new Date().toLocaleTimeString('en-US', options).slice(0, 2);
+        if (hour >= 4 && hour < 11) return "Selamat Pagi!";
+        if (hour >= 11 && hour < 15) return "Selamat Siang!";
+        if (hour >= 15 && hour < 19) return "Selamat Sore!";
+        return "Selamat Malam!";
+    }
+    
+    function updateProfilePicture(key) {
+        DOMElements.profileButton.innerHTML = initialData.avatars[key] || initialData.avatars['cowo-kantoran'];
+    }
+    
+    // --- Event Listeners ---
+    function setupEventListeners() {
+        // Navbar
+        let lastScrollTop = 0;
+        window.addEventListener('scroll', function() {
+            let scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            DOMElements.navbar.style.transform = (scrollTop > lastScrollTop && scrollTop > 100) ? 'translateY(-100%)' : 'translateY(0)';
+            lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+        });
+
+        // Navigation
+        DOMElements.navLinks.forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const pageId = link.getAttribute('href').substring(1) + '-page';
+                showPage(pageId);
+            });
+        });
+        
+        // Search
+        DOMElements.searchInput.addEventListener('input', e => {
+            const query = e.target.value.toLowerCase();
+            const filteredNews = state.newsData.filter(news => 
+                news.title.toLowerCase().includes(query) || 
+                news.category.toLowerCase().includes(query)
+            );
+            populateGrid(DOMElements.searchResultsGrid, filteredNews, createNewsCard);
+            DOMElements.noResults.classList.toggle('hidden', filteredNews.length > 0);
+        });
+
+        // Profile & Login/Logout
+        DOMElements.profileButton.addEventListener('click', () => openModal(DOMElements.profileModal.modal));
+        DOMElements.profileModal.closeBtn.addEventListener('click', () => closeModal(DOMElements.profileModal.modal));
+        DOMElements.profileModal.loginBtn.addEventListener('click', () => openModal(DOMElements.loginModal.modal));
+        DOMElements.profileModal.logoutBtn.addEventListener('click', handleLogout);
+        DOMElements.loginModal.form.addEventListener('submit', handleLogin);
+        
+        // *** CORRECTED EVENT LISTENER LOGIC ***
+        document.body.addEventListener('click', e => {
+            // Prioritize admin button clicks first
+            const editArticleBtn = e.target.closest('.edit-article-btn');
+            if (editArticleBtn) {
+                e.stopPropagation();
+                openArticleForm(Number(editArticleBtn.dataset.id));
+                return;
+            }
+
+            const deleteArticleBtn = e.target.closest('.delete-article-btn');
+            if (deleteArticleBtn) {
+                e.stopPropagation();
+                deleteArticle(Number(deleteArticleBtn.dataset.id));
+                return;
+            }
+
+            const editLibraryBtn = e.target.closest('.edit-library-btn');
+            if (editLibraryBtn) {
+                e.stopPropagation();
+                openLibraryForm(Number(editLibraryBtn.dataset.id));
+                return;
+            }
+
+            const deleteLibraryBtn = e.target.closest('.delete-library-btn');
+            if (deleteLibraryBtn) {
+                e.stopPropagation();
+                deleteLibraryItem(Number(deleteLibraryBtn.dataset.id));
+                return;
+            }
+
+            // If no admin button was clicked, check for content view clicks
+            const articleContent = e.target.closest('.article-content');
+            if (articleContent) {
+                openArticleViewer(Number(articleContent.dataset.id));
+                return;
+            }
+
+            const libraryContent = e.target.closest('.library-content');
+            if (libraryContent) {
+                openPdfViewer(Number(libraryContent.dataset.id));
+                return;
+            }
+        });
+
+        // Admin forms
+        DOMElements.addArticleBtn.addEventListener('click', () => openArticleForm());
+        DOMElements.articleFormModal.form.addEventListener('submit', saveArticle);
+        DOMElements.articleFormModal.cancelBtn.addEventListener('click', () => closeModal(DOMElements.articleFormModal.modal));
+        
+        DOMElements.addLibraryBtn.addEventListener('click', () => openLibraryForm());
+        DOMElements.libraryFormModal.form.addEventListener('submit', saveLibraryItem);
+        DOMElements.libraryFormModal.cancelBtn.addEventListener('click', () => closeModal(DOMElements.libraryFormModal.modal));
+
+        // Close Viewers
+        DOMElements.articleDetailModal.closeBtn.addEventListener('click', closeViewers);
+        DOMElements.articleDetailModal.modal.addEventListener('click', (e) => e.target === DOMElements.articleDetailModal.modal && closeViewers());
+        DOMElements.pdfModal.closeBtn.addEventListener('click', closeViewers);
+        DOMElements.pdfModal.modal.addEventListener('click', (e) => e.target === DOMElements.pdfModal.modal && closeViewers());
+
+        // Close other modals on overlay click
+        DOMElements.loginModal.modal.addEventListener('click', e => e.target === DOMElements.loginModal.modal && closeModal(DOMElements.loginModal.modal));
+    }
+    
+    // --- Initialization ---
+    function initialize() {
+        // Load data from localStorage or use initial data
+        state.newsData = JSON.parse(localStorage.getItem('wiejaya_newsData')) || initialData.news;
+        state.libraryData = JSON.parse(localStorage.getItem('wiejaya_libraryData')) || initialData.library;
+        state.isLoggedIn = localStorage.getItem('wiejaya_isLoggedIn') === 'true';
+
+        // Initial render
+        renderAllGrids();
+        
+        // Populate Avatars
+        const { avatarGrid } = DOMElements.profileModal;
+        Object.entries(initialData.avatars).forEach(([key, svg]) => {
+            const button = document.createElement('button');
+            button.innerHTML = svg;
+            button.className = 'p-2 rounded-full overflow-hidden transform hover:scale-110 transition-transform duration-300 ring-2 ring-transparent hover:ring-cyan-400 focus:ring-cyan-400 outline-none';
+            button.addEventListener('click', () => {
+                localStorage.setItem('selectedAvatar', key);
+                updateProfilePicture(key);
+            });
+            avatarGrid.appendChild(button);
+        });
+
+        const savedAvatar = localStorage.getItem('selectedAvatar') || 'cowo-kantoran';
+        updateProfilePicture(savedAvatar);
+        
+        updateUIForAuthState();
+        setupEventListeners();
+        showPage('home-page');
+    }
+
+    // Run on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', initialize);
+})();
+</script>
+
+</body>
+</html>
+
+
