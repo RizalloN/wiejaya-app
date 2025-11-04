@@ -3,14 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wiejaya Apps - Kanal Berita</title>
+    <title>Wiejaya Apps - Kanal Berita (Firebase)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <!-- PDF.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
+
+    <!-- ▼▼▼ FIREBASE SDK (COMPATIBILITY MODE) ▼▼▼ -->
+    <!-- Ini adalah skrip yang Anda minta, dirancang untuk bekerja dengan skrip non-module kita -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- ▲▲▲ FIREBASE SDK ▲▲▲ -->
+
 
     <style>
         /* Custom styles and animations */
@@ -255,7 +264,8 @@
             <h3 class="text-2xl font-bold text-center text-white">Admin Login</h3>
             <form id="login-form">
                 <div class="space-y-4">
-                    <input type="text" id="username" placeholder="Username" class="form-input" required>
+                    <!-- DIUBAH: Menggunakan type="email" untuk Firebase Auth -->
+                    <input type="email" id="email" placeholder="Email" class="form-input" required>
                     <input type="password" id="password" placeholder="Password" class="form-input" required>
                 </div>
                 <p id="login-error" class="text-red-400 text-sm mt-2 h-4"></p>
@@ -292,7 +302,7 @@
                 <input type="text" id="library-author" placeholder="Penulis / Penerbit" class="form-input" required>
                  <div>
                     <input type="text" id="library-pdfUrl" placeholder="URL PDF Dokumen" class="form-input" required>
-                    <p class="text-xs text-slate-500 mt-2">Untuk demonstrasi, gunakan URL PDF yang mendukung CORS, seperti dari Mozilla. </p>
+                    <p class="text-xs text-slate-500 mt-2">Gunakan URL PDF yang mendukung CORS (misal: dari Firebase Storage).</p>
                  </div>
                 <div class="flex gap-4">
                     <button type="button" id="cancel-library-form" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg transition-colors">Batal</button>
@@ -342,16 +352,31 @@
 <script>
 // IFFE to encapsulate scope
 (function () {
+    
+    // ▼▼▼ KONFIGURASI FIREBASE ANDA ▼▼▼
+    const firebaseConfig = {
+        apiKey: "AIzaSyDeSeAhNsr7wEpHmaPwmBZdi7_MafSgLZI",
+        authDomain: "wiejaya-apps-64bcd.firebaseapp.com",
+        projectId: "wiejaya-apps-64bcd",
+        storageBucket: "wiejaya-apps-64bcd.firebasestorage.app",
+        messagingSenderId: "390374709905",
+        appId: "1:390374709905:web:acd6466c6aa2dcd9c47d30",
+        measurementId: "G-2D6BX4NZPC"
+    };
+
+    // Inisialisasi Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+    // ▲▲▲ KONFIGURASI FIREBASE ANDA ▲▲▲
+    
+
     // --- State Management ---
     let state = {
         isLoggedIn: false,
         newsData: [],
         libraryData: []
     };
-
-    // --- Admin Credentials ---
-    const ADMIN_USERNAME = 'admin';
-    const ADMIN_PASSWORD = 'wiejaya2025';
 
     // --- DOM Elements ---
     const DOMElements = {
@@ -378,7 +403,7 @@
         loginModal: {
             modal: document.getElementById('login-modal'),
             form: document.getElementById('login-form'),
-            usernameInput: document.getElementById('username'),
+            emailInput: document.getElementById('email'), // Diubah dari usernameInput
             passwordInput: document.getElementById('password'),
             errorMsg: document.getElementById('login-error'),
         },
@@ -432,6 +457,7 @@
     
     // --- Data ---
     const initialData = {
+        // Avatar data tetap lokal, tidak perlu ke database
         avatars: {
             'cowo-kantoran': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_1" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_1)"><rect width="36" height="36" fill="#ff7d10"></rect><rect x="0" y="0" width="36" height="36" transform="translate(4 4) rotate(240 18 18) scale(1.2)" fill="#013d2c" rx="36"></rect><g transform="translate(3 -2) rotate(0 18 18)"><path d="M15 19c2 1 4 1 6 0" stroke="#FFFFFF" fill="none" stroke-linecap="round"></path><rect x="11" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect><rect x="23" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect></g></g></svg>`,
             'cewe-kantoran': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_2" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_2)"><rect width="36" height="36" fill="#733833"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 0) rotate(20 18 18) scale(1.1)" fill="#e6a861" rx="6"></rect><g transform="translate(-2 6) rotate(-10 18 18)"><path d="M15 21c2 1 4 1 6 0" stroke="#000000" fill="none" stroke-linecap="round"></path><rect x="13" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect><rect x="21" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect></g></g></svg>`,
@@ -440,30 +466,7 @@
             'bunga': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_5" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_5)"><rect width="36" height="36" fill="#f0e2b6"></rect><rect x="0" y="0" width="36" height="36" transform="translate(9 -5) rotate(215 18 18) scale(1.2)" fill="#f0983e" rx="36"></rect><g transform="translate(4.5 -3.5) rotate(0 18 18)"><path d="M15 21c2 1 4 1 6 0" stroke="#000000" fill="none" stroke-linecap="round"></path><rect x="14" y="15" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect><rect x="20" y="15" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect></g></g></svg>`,
             'kucing': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_6" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_6)"><rect width="36" height="36" fill="#b96a45"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 9) rotate(0 18 18) scale(1.2)" fill="#f0e2b6" rx="6"></rect><g transform="translate(0 4.5) rotate(0 18 18)"><path d="M15,19 a1,1 0 0,0 6,0" stroke="#000000" fill="none" stroke-linecap="round"></path><path d="M14,16.5 a0.5,0.5 0 0,0 1,0" fill="#000000"></path><path d="M21,16.5 a0.5,0.5 0 0,0 1,0" fill="#000000"></path></g></g></svg>`
         },
-        news: [
-            { id: 1, title: "Federal Reserve Hints at Slower Rate Hikes Amid Economic Uncertainty", category: "KEBIJAKAN MONETER", img: "https://placehold.co/600x400/083344/FFFFFF?text=Fed", fullText: "Pejabat Federal Reserve mengindikasikan bahwa laju kenaikan suku bunga dapat melambat dalam beberapa bulan mendatang. Hal ini memberikan kelegaan bagi pasar global, namun ketidakpastian mengenai inflasi masih menjadi perhatian utama para investor dan analis ekonomi. Keputusan ini akan sangat bergantung pada data ekonomi yang masuk dalam beberapa minggu ke depan."},
-            { id: 2, title: "Bank Sentral Eropa Menaikkan Suku Bunga Acuan Sebesar 75 Poin Basis", category: "EROPA", img: "https://placehold.co/600x400/115e59/FFFFFF?text=ECB", fullText: "Bank Sentral Eropa (ECB) mengambil langkah agresif untuk memerangi inflasi yang meroket dengan menaikkan suku bunga acuan sebesar 75 basis poin. Langkah ini, yang terbesar dalam sejarah ECB, menandakan komitmen kuat untuk mengendalikan harga meskipun ada risiko resesi ekonomi di kawasan Euro."},
-            { id: 3, title: "Revolusi Digital Banking: Bagaimana Fintech Mengubah Wajah Perbankan Asia", category: "TEKNOLOGI FINANSIAL", img: "https://placehold.co/600x400/86198f/FFFFFF?text=Fintech", fullText: "Perusahaan teknologi finansial (fintech) di Asia Tenggara terus berinovasi, menawarkan layanan perbankan digital yang lebih mudah diakses dan efisien. Dari pembayaran digital hingga pinjaman online, fintech menantang model bisnis bank tradisional dan mendorong inklusi keuangan di seluruh wilayah."},
-            { id: 4, title: "Dolar AS Menguat Terhadap Mata Uang Utama di Tengah Kekhawatiran Resesi Global", category: "PASAR VALAS", img: "https://placehold.co/600x400/a16207/FFFFFF?text=Dollar", fullText: "Dolar Amerika Serikat mencapai level tertinggi dalam dua dekade terhadap sejumlah mata uang utama dunia. Penguatan ini didorong oleh statusnya sebagai 'safe-haven' di tengah meningkatnya kekhawatiran akan resesi global dan kebijakan moneter ketat dari The Fed."},
-            { id: 5, title: "Skandal Kripto Terbaru Mengguncang Kepercayaan Investor", category: "ASET DIGITAL", img: "https://placehold.co/600x400/be123c/FFFFFF?text=Crypto", fullText: "Runtuhnya salah satu bursa kripto besar telah mengirimkan gelombang kejutan ke seluruh industri aset digital. Insiden ini menyoroti kurangnya regulasi dan perlindungan investor, memicu seruan untuk pengawasan yang lebih ketat dari pemerintah di seluruh dunia."},
-            { id: 6, title: "Perbankan Syariah Menunjukkan Pertumbuhan Tahan Banting di Pasar Berkembang", category: "KEUANGAN SYARIAH", img: "https://placehold.co/600x400/065f46/FFFFFF?text=Syariah", fullText: "Di tengah volatilitas ekonomi global, sektor perbankan syariah menunjukkan pertumbuhan yang stabil dan kuat, terutama di negara-negara dengan populasi Muslim yang besar. Prinsip-prinsip etis dan pembagian risiko menjadi daya tarik utama bagi nasabah dan investor."},
-            { id: 7, title: "China Meluncurkan Uji Coba Yuan Digital Skala Besar di Beberapa Kota", category: "MATA UANG DIGITAL", img: "https://placehold.co/600x400/b91c1c/FFFFFF?text=Yuan", fullText: "Bank Rakyat China (PBOC) memperluas uji coba mata uang digital bank sentral (CBDC), yang dikenal sebagai e-CNY atau Yuan digital. Langkah ini menempatkan China di garis depan dalam perlombaan global untuk meluncurkan mata uang digital nasional, yang berpotensi mengubah sistem pembayaran global."},
-            { id: 8, title: "Investasi ESG (Environmental, Social, and Governance) Menjadi Tren Utama di Wall Street", category: "INVESTASI BERKELANJUTAN", img: "https://placehold.co/600x400/581c87/FFFFFF?text=ESG", fullText: "Investor institusional dan ritel semakin banyak mengalokasikan modal ke perusahaan yang memiliki kinerja lingkungan, sosial, dan tata kelola (ESG) yang kuat. Tren ini mencerminkan pergeseran kesadaran bahwa keberlanjutan adalah kunci untuk kinerja keuangan jangka panjang."},
-            { id: 9, title: "Regulator Inggris Memperketat Aturan 'Buy Now, Pay Later' (BNPL)", category: "REGULASI", img: "https://placehold.co/600x400/9a3412/FFFFFF?text=BNPL", fullText: "Otoritas Jasa Keuangan Inggris (FCA) telah mengumumkan rencana untuk mengatur layanan 'Buy Now, Pay Later' (BNPL) untuk melindungi konsumen dari potensi utang yang tidak terkendali. Aturan baru ini akan menuntut penyedia BNPL untuk melakukan pemeriksaan keterjangkauan yang lebih ketat."},
-            { id: 10, title: "Merger Bank-Bank Raksasa Eropa Menciptakan Kekuatan Finansial Baru", category: "KORPORASI", img: "https://placehold.co/600x400/4a044e/FFFFFF?text=Merger", fullText: "Dua bank investasi terbesar di Eropa telah setuju untuk merger dalam sebuah kesepakatan bernilai miliaran dolar. Konsolidasi ini diharapkan dapat meningkatkan daya saing mereka di panggung global dan menciptakan efisiensi operasional yang signifikan."},
-        ],
-        library: [
-            { id: 1, title: "Trace-Based Just-in-Time Type Specialization for Dynamic Languages", author: "Mozilla Foundation", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 2, title: "The Future of Central Bank Digital Currencies", author: "Bank for International Settlements", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 3, title: "Global Investment Returns Yearbook", author: "Credit Suisse Research Institute", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 4, title: "Understanding the Crypto Asset Market", author: "Financial Stability Board", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 5, title: "ESG Integration in Investment Portfolios", author: "CFA Institute", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 6, title: "The Economic Outlook: March 2024", author: "OECD", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 7, title: "Digital Transformation of Financial Services", author: "World Bank Group", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 8, title: "Islamic Finance Development Report", author: "Islamic Development Bank", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 9, title: "Global Wealth Report 2023", author: "Boston Consulting Group", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-            { id: 10, title: "Cross-Border Payments: A New Landscape", author: "McKinsey & Company", pdfUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf' },
-        ]
+        // Data awal dihapus dari sini, akan diambil dari Firestore
     };
 
     // --- Utility Functions ---
@@ -504,6 +507,7 @@
     // Create a single news card
     function createNewsCard(news) {
         const card = document.createElement('div');
+        // PENTING: ID sekarang adalah string dari Firestore, bukan angka
         card.className = 'card-anim bg-slate-900 rounded-xl overflow-hidden group border border-slate-800 hover:border-cyan-500/50 transition-all duration-300 transform hover:-translate-y-2 relative';
         
         let adminControls = '';
@@ -582,34 +586,38 @@
         });
     }
 
-    // --- Authentication ---
+    // --- Authentication (DIUBAH) ---
     function handleLogin(e) {
         e.preventDefault();
-        const { usernameInput: u, passwordInput: p, errorMsg } = DOMElements.loginModal;
-        if (u.value === ADMIN_USERNAME && p.value === ADMIN_PASSWORD) {
-            state.isLoggedIn = true;
-            localStorage.setItem('wiejaya_isLoggedIn', 'true');
-            u.value = '';
-            p.value = '';
-            closeModal(DOMElements.loginModal.modal);
-            closeModal(DOMElements.profileModal.modal);
-            updateUIForAuthState();
-            renderAllGrids();
-        } else {
-            errorMsg.textContent = 'Username atau password salah.';
-            setTimeout(() => errorMsg.textContent = '', 3000);
-        }
+        const { emailInput: u, passwordInput: p, errorMsg } = DOMElements.loginModal;
+        
+        auth.signInWithEmailAndPassword(u.value, p.value)
+            .then((userCredential) => {
+                // state.isLoggedIn = true; (Dihapus, ditangani oleh onAuthStateChanged)
+                u.value = '';
+                p.value = '';
+                errorMsg.textContent = '';
+                closeModal(DOMElements.loginModal.modal);
+                closeModal(DOMElements.profileModal.modal);
+                // updateUIForAuthState(); (Dihapus, ditangani oleh onAuthStateChanged)
+                // renderAllGrids(); (Dihapus, ditangani oleh onAuthStateChanged)
+            })
+            .catch((error) => {
+                errorMsg.textContent = 'Email atau password salah.';
+                setTimeout(() => errorMsg.textContent = '', 3000);
+            });
     }
 
     function handleLogout() {
-        state.isLoggedIn = false;
-        localStorage.removeItem('wiejaya_isLoggedIn');
-        closeModal(DOMElements.profileModal.modal);
-        updateUIForAuthState();
-        renderAllGrids();
+        auth.signOut().then(() => {
+            // state.isLoggedIn = false; (Dihapus, ditangani oleh onAuthStateChanged)
+            closeModal(DOMElements.profileModal.modal);
+            // updateUIForAuthState(); (Dihapus, ditangani oleh onAuthStateChanged)
+            // renderAllGrids(); (Dihapus, ditangani oleh onAuthStateChanged)
+        });
     }
     
-    // --- CRUD Operations ---
+    // --- CRUD Operations (DIUBAH) ---
     
     // Articles
     function openArticleForm(articleId = null) {
@@ -633,31 +641,37 @@
     function saveArticle(e) {
         e.preventDefault();
         const { idInput, titleInput, categoryInput, imgInput, fullTextInput } = DOMElements.articleFormModal;
+        
+        // Data yang akan disimpan (tanpa ID, karena ID adalah nama dokumen)
         const articleData = {
-            id: idInput.value ? Number(idInput.value) : Date.now(),
             title: titleInput.value,
             category: categoryInput.value,
             img: imgInput.value,
             fullText: fullTextInput.value
         };
+        
+        // Tambahkan 'timestamp' untuk pengurutan, jika ingin
+        // articleData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
 
         if (idInput.value) { // Editing
-            const index = state.newsData.findIndex(a => a.id === articleData.id);
-            state.newsData[index] = articleData;
+            db.collection("articles").doc(idInput.value).set(articleData, { merge: true })
+                .then(() => closeModal(DOMElements.articleFormModal.modal))
+                .catch(e => console.error("Error updating document: ", e));
         } else { // Adding
-            state.newsData.unshift(articleData);
+            db.collection("articles").add(articleData)
+                .then(() => closeModal(DOMElements.articleFormModal.modal))
+                .catch(e => console.error("Error adding document: ", e));
         }
-        localStorage.setItem('wiejaya_newsData', JSON.stringify(state.newsData));
-        renderAllGrids();
-        closeModal(DOMElements.articleFormModal.modal);
+        // Hapus: localStorage.setItem(...)
+        // Hapus: renderAllGrids() (ditangani onSnapshot)
     }
 
     function deleteArticle(articleId) {
-        // NOTE: The confirm() dialog was removed because it can be blocked in some browser environments.
-        // Deletion is now immediate.
-        state.newsData = state.newsData.filter(a => a.id !== articleId);
-        localStorage.setItem('wiejaya_newsData', JSON.stringify(state.newsData));
-        renderAllGrids();
+        // Hapus: dialog 'confirm'
+        db.collection("articles").doc(articleId).delete()
+            .catch(e => console.error("Error deleting document: ", e));
+        // Hapus: localStorage.setItem(...)
+        // Hapus: renderAllGrids() (ditangani onSnapshot)
     }
     
     // Library
@@ -682,29 +696,25 @@
         e.preventDefault();
         const { idInput, titleInput, authorInput, pdfUrlInput } = DOMElements.libraryFormModal;
         const itemData = {
-            id: idInput.value ? Number(idInput.value) : Date.now(),
             title: titleInput.value,
             author: authorInput.value,
             pdfUrl: pdfUrlInput.value
         };
 
         if (idInput.value) { // Editing
-            const index = state.libraryData.findIndex(i => i.id === itemData.id);
-            state.libraryData[index] = itemData;
+            db.collection("libraryItems").doc(idInput.value).set(itemData, { merge: true })
+                .then(() => closeModal(DOMElements.libraryFormModal.modal))
+                .catch(e => console.error("Error updating document: ", e));
         } else { // Adding
-            state.libraryData.unshift(itemData);
+            db.collection("libraryItems").add(itemData)
+                .then(() => closeModal(DOMElements.libraryFormModal.modal))
+                .catch(e => console.error("Error adding document: ", e));
         }
-        localStorage.setItem('wiejaya_libraryData', JSON.stringify(state.libraryData));
-        renderAllGrids();
-        closeModal(DOMElements.libraryFormModal.modal);
     }
     
     function deleteLibraryItem(itemId) {
-        // NOTE: The confirm() dialog was removed because it can be blocked in some browser environments.
-        // Deletion is now immediate.
-        state.libraryData = state.libraryData.filter(i => i.id !== itemId);
-        localStorage.setItem('wiejaya_libraryData', JSON.stringify(state.libraryData));
-        renderAllGrids();
+        db.collection("libraryItems").doc(itemId).delete()
+            .catch(e => console.error("Error deleting document: ", e));
     }
 
     // --- Modal Viewers (User-facing) ---
@@ -838,47 +848,40 @@
         DOMElements.profileModal.logoutBtn.addEventListener('click', handleLogout);
         DOMElements.loginModal.form.addEventListener('submit', handleLogin);
         
-        // *** CORRECTED EVENT LISTENER LOGIC ***
+        // --- Event Listener Logic (Sama seperti sebelumnya, sudah benar) ---
         document.body.addEventListener('click', e => {
-            // Prioritize admin button clicks first
             const editArticleBtn = e.target.closest('.edit-article-btn');
             if (editArticleBtn) {
                 e.stopPropagation();
-                openArticleForm(Number(editArticleBtn.dataset.id));
+                openArticleForm(editArticleBtn.dataset.id);
                 return;
             }
-
             const deleteArticleBtn = e.target.closest('.delete-article-btn');
             if (deleteArticleBtn) {
                 e.stopPropagation();
-                deleteArticle(Number(deleteArticleBtn.dataset.id));
+                deleteArticle(deleteArticleBtn.dataset.id);
                 return;
             }
-
             const editLibraryBtn = e.target.closest('.edit-library-btn');
             if (editLibraryBtn) {
                 e.stopPropagation();
-                openLibraryForm(Number(editLibraryBtn.dataset.id));
+                openLibraryForm(editLibraryBtn.dataset.id);
                 return;
             }
-
             const deleteLibraryBtn = e.target.closest('.delete-library-btn');
             if (deleteLibraryBtn) {
                 e.stopPropagation();
-                deleteLibraryItem(Number(deleteLibraryBtn.dataset.id));
+                deleteLibraryItem(deleteLibraryBtn.dataset.id);
                 return;
             }
-
-            // If no admin button was clicked, check for content view clicks
             const articleContent = e.target.closest('.article-content');
             if (articleContent) {
-                openArticleViewer(Number(articleContent.dataset.id));
+                openArticleViewer(articleContent.dataset.id);
                 return;
             }
-
             const libraryContent = e.target.closest('.library-content');
             if (libraryContent) {
-                openPdfViewer(Number(libraryContent.dataset.id));
+                openPdfViewer(libraryContent.dataset.id);
                 return;
             }
         });
@@ -897,29 +900,58 @@
         DOMElements.articleDetailModal.modal.addEventListener('click', (e) => e.target === DOMElements.articleDetailModal.modal && closeViewers());
         DOMElements.pdfModal.closeBtn.addEventListener('click', closeViewers);
         DOMElements.pdfModal.modal.addEventListener('click', (e) => e.target === DOMElements.pdfModal.modal && closeViewers());
-
-        // Close other modals on overlay click
         DOMElements.loginModal.modal.addEventListener('click', e => e.target === DOMElements.loginModal.modal && closeModal(DOMElements.loginModal.modal));
     }
     
-    // --- Initialization ---
+    // --- Initialization (DIUBAH) ---
     function initialize() {
-        // Load data from localStorage or use initial data
-        state.newsData = JSON.parse(localStorage.getItem('wiejaya_newsData')) || initialData.news;
-        state.libraryData = JSON.parse(localStorage.getItem('wiejaya_libraryData')) || initialData.library;
-        state.isLoggedIn = localStorage.getItem('wiejaya_isLoggedIn') === 'true';
-
-        // Initial render
-        renderAllGrids();
+        // Hapus: Pengambilan data dari localStorage
         
-        // Populate Avatars
+        // BARU: Listener status autentikasi (login/logout)
+        auth.onAuthStateChanged((user) => {
+            state.isLoggedIn = !!user; // !!user mengubah user object menjadi true, atau null/undefined menjadi false
+            updateUIForAuthState();
+            
+            // Render grid hanya setelah status auth diketahui
+            // Ini memastikan tombol admin muncul/hilang dengan benar saat pertama kali memuat
+            renderAllGrids(); 
+        });
+
+        // BARU: Listener realtime untuk data artikel
+        db.collection("articles")
+            // .orderBy("createdAt", "desc") // (Opsional) jika Anda menambahkan timestamp
+            .onSnapshot((snapshot) => {
+                state.newsData = []; // Kosongkan data lokal
+                snapshot.forEach((doc) => {
+                    // Masukkan ID dokumen Firestore ke dalam objek data
+                    state.newsData.push({ id: doc.id, ...doc.data() });
+                });
+                // Render ulang grid setiap kali data di database berubah
+                renderAllGrids();
+            }, (error) => {
+                console.error("Error listening to articles: ", error);
+            });
+
+        // BARU: Listener realtime untuk data pustaka
+        db.collection("libraryItems")
+            .onSnapshot((snapshot) => {
+                state.libraryData = [];
+                snapshot.forEach((doc) => {
+                    state.libraryData.push({ id: doc.id, ...doc.data() });
+                });
+                renderAllGrids();
+            }, (error) => {
+                console.error("Error listening to library items: ", error);
+            });
+        
+        // Populate Avatars (tetap lokal)
         const { avatarGrid } = DOMElements.profileModal;
         Object.entries(initialData.avatars).forEach(([key, svg]) => {
             const button = document.createElement('button');
             button.innerHTML = svg;
             button.className = 'p-2 rounded-full overflow-hidden transform hover:scale-110 transition-transform duration-300 ring-2 ring-transparent hover:ring-cyan-400 focus:ring-cyan-400 outline-none';
             button.addEventListener('click', () => {
-                localStorage.setItem('selectedAvatar', key);
+                localStorage.setItem('selectedAvatar', key); // Avatar tetap di localStorage
                 updateProfilePicture(key);
             });
             avatarGrid.appendChild(button);
@@ -928,7 +960,6 @@
         const savedAvatar = localStorage.getItem('selectedAvatar') || 'cowo-kantoran';
         updateProfilePicture(savedAvatar);
         
-        updateUIForAuthState();
         setupEventListeners();
         showPage('home-page');
     }
@@ -940,5 +971,4 @@
 
 </body>
 </html>
-
 
