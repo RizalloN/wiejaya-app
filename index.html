@@ -14,10 +14,11 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js"></script>
 
     <!-- ▼▼▼ FIREBASE SDK (COMPATIBILITY MODE) ▼▼▼ -->
-    <!-- Ini adalah skrip yang Anda minta, dirancang untuk bekerja dengan skrip non-module kita -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <!-- BARU: Menambahkan SDK Firebase Storage -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
     <!-- ▲▲▲ FIREBASE SDK ▲▲▲ -->
 
 
@@ -120,13 +121,56 @@
             border-color: #38bdf8;
             box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.4);
         }
-        .file-upload-label {
-            border: 2px dashed #475569;
-            cursor: pointer;
-            transition: border-color 0.3s;
+        /* Style untuk input file */
+        .file-input-wrapper {
+            position: relative;
+            width: 100%;
         }
-        .file-upload-label:hover {
+        .file-input-label {
+            background-color: #1e293b;
+            border: 1px dashed #475569;
+            color: #94a3b8;
+            border-radius: 0.5rem;
+            padding: 2rem 1rem;
+            width: 100%;
+            transition: border-color 0.2s, background-color 0.2s;
+            text-align: center;
+            cursor: pointer;
+        }
+        .file-input-label:hover {
             border-color: #38bdf8;
+            background-color: #293548;
+        }
+        .file-input-label span {
+            display: block;
+        }
+        .file-input-label .file-name {
+            font-weight: bold;
+            color: #e2e8f0;
+            margin-top: 8px;
+        }
+        #library-pdfFile {
+            opacity: 0;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            cursor: pointer;
+        }
+        #upload-progress-container {
+            display: none;
+            width: 100%;
+            background-color: #1e293b;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+        #upload-progress-bar {
+            width: 0%;
+            height: 10px;
+            background-color: #38bdf8;
+            transition: width 0.3s;
         }
     </style>
 </head>
@@ -221,6 +265,10 @@
                     <h2 class="text-3xl md:text-4xl font-bold mb-2 text-slate-100">Pustaka Digital</h2>
                     <p class="text-slate-400">Kumpulan laporan, jurnal, dan dokumen penting seputar dunia finansial.</p>
                 </div>
+                <!-- BARU: Search Bar untuk Pustaka -->
+                <div class="max-w-xl mx-auto mb-10">
+                    <input type="text" id="library-search-input" placeholder="Cari judul atau penulis dokumen..." class="search-input w-full p-4 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-200 placeholder-slate-500 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all duration-300 text-lg">
+                </div>
                  <div class="flex justify-center mb-10">
                     <button id="add-library-btn" class="admin-only bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -230,6 +278,9 @@
                  <div id="library-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
                     <!-- Library items will be injected here by JS -->
                  </div>
+                 <div id="no-library-results" class="hidden text-center py-16">
+                    <p class="text-xl text-slate-400">Tidak ada dokumen yang ditemukan.</p>
+                </div>
              </div>
         </div>
     </main>
@@ -264,7 +315,6 @@
             <h3 class="text-2xl font-bold text-center text-white">Admin Login</h3>
             <form id="login-form">
                 <div class="space-y-4">
-                    <!-- DIUBAH: Menggunakan type="email" untuk Firebase Auth -->
                     <input type="email" id="email" placeholder="Email" class="form-input" required>
                     <input type="password" id="password" placeholder="Password" class="form-input" required>
                 </div>
@@ -298,15 +348,28 @@
             <h3 id="library-form-title" class="text-2xl font-bold text-white">Tambah Pustaka Baru</h3>
             <form id="library-form" class="space-y-4">
                 <input type="hidden" id="library-id">
+                <input type="hidden" id="library-oldPdfUrl"> <!-- Untuk menyimpan URL lama saat edit -->
                 <input type="text" id="library-title" placeholder="Judul Dokumen" class="form-input" required>
                 <input type="text" id="library-author" placeholder="Penulis / Penerbit" class="form-input" required>
-                 <div>
-                    <input type="text" id="library-pdfUrl" placeholder="URL PDF Dokumen" class="form-input" required>
-                    <p class="text-xs text-slate-500 mt-2">Gunakan URL PDF yang mendukung CORS (misal: dari Firebase Storage).</p>
-                 </div>
+                 
+                <!-- BARU: Input File Upload -->
+                <div class="file-input-wrapper">
+                    <label for="library-pdfFile" class="file-input-label">
+                        <span>Klik untuk meng-upload file PDF</span>
+                        <span class="file-name" id="file-name-display">Belum ada file dipilih</span>
+                    </label>
+                    <input type="file" id="library-pdfFile" accept="application/pdf">
+                </div>
+                <p class="text-xs text-slate-500 -mt-2">Kosongkan jika tidak ingin mengubah file PDF saat mengedit.</p>
+                
+                <!-- BARU: Progress Bar Upload -->
+                <div id="upload-progress-container">
+                    <div id="upload-progress-bar"></div>
+                </div>
+
                 <div class="flex gap-4">
                     <button type="button" id="cancel-library-form" class="w-full bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold py-2 px-4 rounded-lg transition-colors">Batal</button>
-                    <button type="submit" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Simpan</button>
+                    <button type="submit" id="save-library-btn" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">Simpan</button>
                 </div>
             </form>
         </div>
@@ -368,6 +431,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const auth = firebase.auth();
+    const storage = firebase.storage(); // BARU: Inisialisasi Storage
     // ▲▲▲ KONFIGURASI FIREBASE ANDA ▲▲▲
     
 
@@ -387,6 +451,9 @@
         searchResultsGrid: document.getElementById('search-results-grid'),
         searchInput: document.getElementById('search-input'),
         noResults: document.getElementById('no-results'),
+        // BARU: Elemen pencarian Pustaka
+        librarySearchInput: document.getElementById('library-search-input'),
+        noLibraryResults: document.getElementById('no-library-results'),
         
         // Modals
         profileModal: {
@@ -403,7 +470,7 @@
         loginModal: {
             modal: document.getElementById('login-modal'),
             form: document.getElementById('login-form'),
-            emailInput: document.getElementById('email'), // Diubah dari usernameInput
+            emailInput: document.getElementById('email'), 
             passwordInput: document.getElementById('password'),
             errorMsg: document.getElementById('login-error'),
         },
@@ -423,9 +490,14 @@
             form: document.getElementById('library-form'),
             title: document.getElementById('library-form-title'),
             idInput: document.getElementById('library-id'),
+            oldPdfUrlInput: document.getElementById('library-oldPdfUrl'),
             titleInput: document.getElementById('library-title'),
             authorInput: document.getElementById('library-author'),
-            pdfUrlInput: document.getElementById('library-pdfUrl'),
+            pdfFileInput: document.getElementById('library-pdfFile'), // DIUBAH
+            fileNameDisplay: document.getElementById('file-name-display'), // BARU
+            uploadProgressContainer: document.getElementById('upload-progress-container'), // BARU
+            uploadProgressBar: document.getElementById('upload-progress-bar'), // BARU
+            saveBtn: document.getElementById('save-library-btn'), // BARU
             cancelBtn: document.getElementById('cancel-library-form'),
         },
         articleDetailModal: {
@@ -459,14 +531,13 @@
     const initialData = {
         // Avatar data tetap lokal, tidak perlu ke database
         avatars: {
-            'cowo-kantoran': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_1" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_1)"><rect width="36" height="36" fill="#ff7d10"></rect><rect x="0" y="0" width="36" height="36" transform="translate(4 4) rotate(240 18 18) scale(1.2)" fill="#013d2c" rx="36"></rect><g transform="translate(3 -2) rotate(0 18 18)"><path d="M15 19c2 1 4 1 6 0" stroke="#FFFFFF" fill="none" stroke-linecap="round"></path><rect x="11" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect><rect x="23" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect></g></g></svg>`,
+            'cowo-kantoran': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_1" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_1)"><rect width="36" height="36" fill="#ff7d10"></rect><rect x="0" y="0" width="36" height="36" transform="translate(4 4) rotate(240 18 18) scale(1.2)" fill="#013d2c" rx="36"></rect><g transform="translate(3 -2) rotate(0 18 18)"><path d="M15 19c2 1 4 1 6 0" stroke="#FFFFFF" fill="none" stroke-linecap="round"></path><rect x="11" y="14" width="1.s5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect><rect x="23" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect></g></g></svg>`,
             'cewe-kantoran': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_2" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_2)"><rect width="36" height="36" fill="#733833"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 0) rotate(20 18 18) scale(1.1)" fill="#e6a861" rx="6"></rect><g transform="translate(-2 6) rotate(-10 18 18)"><path d="M15 21c2 1 4 1 6 0" stroke="#000000" fill="none" stroke-linecap="round"></path><rect x="13" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect><rect x="21" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect></g></g></svg>`,
             'cowo-pendaki': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_3" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_3)"><rect width="36" height="36" fill="#405059"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 0) rotate(328 18 18) scale(1.2)" fill="#3a604a" rx="36"></rect><g transform="translate(0 0) rotate(0 18 18)"><path d="M13,21 a4,2 0 0,0 10,0" fill="#FFFFFF"></path><circle cx="15" cy="15" r="1" fill="#FFFFFF"></circle><circle cx="21" cy="15" r="1" fill="#FFFFFF"></circle></g></g></svg>`,
             'cewe-pendaki': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_4" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_4)"><rect width="36" height="36" fill="#88a2a6"></rect><rect x="0" y="0" width="36" height="36" transform="translate(5 5) rotate(340 18 18) scale(1.2)" fill="#382e2c" rx="6"></rect><g transform="translate(-4 4) rotate(10 18 18)"><path d="M15 20c2 1 4 1 6 0" stroke="#FFFFFF" fill="none" stroke-linecap="round"></path><rect x="12" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect><rect x="22" y="14" width="1.5" height="2" rx="1" stroke="none" fill="#FFFFFF"></rect></g></g></svg>`,
             'bunga': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_5" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_5)"><rect width="36" height="36" fill="#f0e2b6"></rect><rect x="0" y="0" width="36" height="36" transform="translate(9 -5) rotate(215 18 18) scale(1.2)" fill="#f0983e" rx="36"></rect><g transform="translate(4.5 -3.5) rotate(0 18 18)"><path d="M15 21c2 1 4 1 6 0" stroke="#000000" fill="none" stroke-linecap="round"></path><rect x="14" y="15" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect><rect x="20" y="15" width="1.5" height="2" rx="1" stroke="none" fill="#000000"></rect></g></g></svg>`,
             'kucing': `<svg viewBox="0 0 36 36" fill="none" role="img" xmlns="http://www.w3.org/2000/svg" width="36" height="36"><mask id="mask_6" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36"><rect width="36" height="36" rx="72" fill="#FFFFFF"></rect></mask><g mask="url(#mask_6)"><rect width="36" height="36" fill="#b96a45"></rect><rect x="0" y="0" width="36" height="36" transform="translate(0 9) rotate(0 18 18) scale(1.2)" fill="#f0e2b6" rx="6"></rect><g transform="translate(0 4.5) rotate(0 18 18)"><path d="M15,19 a1,1 0 0,0 6,0" stroke="#000000" fill="none" stroke-linecap="round"></path><path d="M14,16.5 a0.5,0.5 0 0,0 1,0" fill="#000000"></path><path d="M21,16.5 a0.5,0.5 0 0,0 1,0" fill="#000000"></path></g></g></svg>`
         },
-        // Data awal dihapus dari sini, akan diambil dari Firestore
     };
 
     // --- Utility Functions ---
@@ -507,7 +578,6 @@
     // Create a single news card
     function createNewsCard(news) {
         const card = document.createElement('div');
-        // PENTING: ID sekarang adalah string dari Firestore, bukan angka
         card.className = 'card-anim bg-slate-900 rounded-xl overflow-hidden group border border-slate-800 hover:border-cyan-500/50 transition-all duration-300 transform hover:-translate-y-2 relative';
         
         let adminControls = '';
@@ -547,10 +617,10 @@
         if (state.isLoggedIn) {
             adminControls = `
                  <div class="admin-card-controls">
-                    <button data-id="${item.id}" class="edit-library-btn bg-slate-800 p-2 rounded-full text-indigo-400 hover:bg-indigo-400 hover:text-slate-900 transition-colors">
+                    <button data-id="${item.id}" data-url="${item.pdfUrl}" class="edit-library-btn bg-slate-800 p-2 rounded-full text-indigo-400 hover:bg-indigo-400 hover:text-slate-900 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
                     </button>
-                    <button data-id="${item.id}" class="delete-library-btn bg-slate-800 p-2 rounded-full text-red-400 hover:bg-red-400 hover:text-slate-900 transition-colors">
+                    <button data-id="${item.id}" data-url="${item.pdfUrl}" class="delete-library-btn bg-slate-800 p-2 rounded-full text-red-400 hover:bg-red-400 hover:text-slate-900 transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="pointer-events-none"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 </div>
@@ -571,9 +641,19 @@
 
     // Populate grids with data
     function renderAllGrids() {
-        populateGrid(DOMElements.newsGrid, state.newsData, createNewsCard);
-        populateGrid(DOMElements.searchResultsGrid, state.newsData, createNewsCard);
-        populateGrid(DOMElements.libraryGrid, state.libraryData, createLibraryCard);
+        // Render dengan data di state
+        const newsQuery = DOMElements.searchInput.value;
+        const libraryQuery = DOMElements.librarySearchInput.value;
+        
+        const filteredNews = getRankedResults(newsQuery, state.newsData, 'title', 'category');
+        const filteredLibrary = getRankedResults(libraryQuery, state.libraryData, 'title', 'author');
+
+        populateGrid(DOMElements.newsGrid, state.newsData, createNewsCard); // Halaman utama selalu tampilkan semua
+        populateGrid(DOMElements.searchResultsGrid, filteredNews, createNewsCard);
+        populateGrid(DOMElements.libraryGrid, filteredLibrary, createLibraryCard);
+        
+        DOMElements.noResults.classList.toggle('hidden', filteredNews.length > 0 || newsQuery.length === 0);
+        DOMElements.noLibraryResults.classList.toggle('hidden', filteredLibrary.length > 0 || libraryQuery.length === 0);
     }
 
     function populateGrid(gridElement, data, cardCreator) {
@@ -585,22 +665,47 @@
             setTimeout(() => card.classList.add('is-visible'), 50);
         });
     }
+    
+    // --- BARU: Logika Pencarian Cerdas ---
+    function getRankedResults(query, dataSet, titleKey, secondaryKey) {
+        const queryTokens = query.toLowerCase().split(' ').filter(t => t.length > 0);
+        
+        if (queryTokens.length === 0) {
+            return dataSet; // Kembalikan semua jika tidak ada kueri
+        }
 
-    // --- Authentication (DIUBAH) ---
+        const results = dataSet.map(item => {
+            let score = 0;
+            const title = (item[titleKey] || '').toLowerCase();
+            const secondary = (item[secondaryKey] || '').toLowerCase();
+
+            queryTokens.forEach(token => {
+                if (title.includes(token)) score += 3;
+                if (secondary.includes(token)) score += 1;
+            });
+            
+            return { item, score };
+        });
+
+        const filtered = results.filter(r => r.score > 0);
+        filtered.sort((a, b) => b.score - a.score); // Urutkan skor tertinggi dulu
+        
+        return filtered.map(r => r.item); // Kembalikan hanya itemnya
+    }
+
+
+    // --- Authentication (Firebase Auth) ---
     function handleLogin(e) {
         e.preventDefault();
         const { emailInput: u, passwordInput: p, errorMsg } = DOMElements.loginModal;
         
         auth.signInWithEmailAndPassword(u.value, p.value)
             .then((userCredential) => {
-                // state.isLoggedIn = true; (Dihapus, ditangani oleh onAuthStateChanged)
                 u.value = '';
                 p.value = '';
                 errorMsg.textContent = '';
                 closeModal(DOMElements.loginModal.modal);
                 closeModal(DOMElements.profileModal.modal);
-                // updateUIForAuthState(); (Dihapus, ditangani oleh onAuthStateChanged)
-                // renderAllGrids(); (Dihapus, ditangani oleh onAuthStateChanged)
             })
             .catch((error) => {
                 errorMsg.textContent = 'Email atau password salah.';
@@ -610,16 +715,13 @@
 
     function handleLogout() {
         auth.signOut().then(() => {
-            // state.isLoggedIn = false; (Dihapus, ditangani oleh onAuthStateChanged)
             closeModal(DOMElements.profileModal.modal);
-            // updateUIForAuthState(); (Dihapus, ditangani oleh onAuthStateChanged)
-            // renderAllGrids(); (Dihapus, ditangani oleh onAuthStateChanged)
         });
     }
     
-    // --- CRUD Operations (DIUBAH) ---
+    // --- CRUD Operations (Firestore + Storage) ---
     
-    // Articles
+    // Articles (Firestore)
     function openArticleForm(articleId = null) {
         const { modal, form, title, idInput, titleInput, categoryInput, imgInput, fullTextInput } = DOMElements.articleFormModal;
         form.reset();
@@ -642,7 +744,6 @@
         e.preventDefault();
         const { idInput, titleInput, categoryInput, imgInput, fullTextInput } = DOMElements.articleFormModal;
         
-        // Data yang akan disimpan (tanpa ID, karena ID adalah nama dokumen)
         const articleData = {
             title: titleInput.value,
             category: categoryInput.value,
@@ -650,9 +751,6 @@
             fullText: fullTextInput.value
         };
         
-        // Tambahkan 'timestamp' untuk pengurutan, jika ingin
-        // articleData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
-
         if (idInput.value) { // Editing
             db.collection("articles").doc(idInput.value).set(articleData, { merge: true })
                 .then(() => closeModal(DOMElements.articleFormModal.modal))
@@ -662,59 +760,138 @@
                 .then(() => closeModal(DOMElements.articleFormModal.modal))
                 .catch(e => console.error("Error adding document: ", e));
         }
-        // Hapus: localStorage.setItem(...)
-        // Hapus: renderAllGrids() (ditangani onSnapshot)
     }
 
     function deleteArticle(articleId) {
-        // Hapus: dialog 'confirm'
         db.collection("articles").doc(articleId).delete()
             .catch(e => console.error("Error deleting document: ", e));
-        // Hapus: localStorage.setItem(...)
-        // Hapus: renderAllGrids() (ditangani onSnapshot)
     }
     
-    // Library
+    // Library (Firestore + Storage)
     function openLibraryForm(itemId = null) {
-        const { modal, form, title, idInput, titleInput, authorInput, pdfUrlInput } = DOMElements.libraryFormModal;
+        const { modal, form, title, idInput, oldPdfUrlInput, titleInput, authorInput, pdfFileInput, fileNameDisplay, uploadProgressContainer, uploadProgressBar, saveBtn } = DOMElements.libraryFormModal;
+        
         form.reset();
+        fileNameDisplay.textContent = 'Belum ada file dipilih';
+        uploadProgressContainer.style.display = 'none';
+        uploadProgressBar.style.width = '0%';
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Simpan';
+
         if (itemId) {
             const item = state.libraryData.find(i => i.id === itemId);
             title.textContent = 'Edit Pustaka';
             idInput.value = item.id;
             titleInput.value = item.title;
             authorInput.value = item.author;
-            pdfUrlInput.value = item.pdfUrl;
+            oldPdfUrlInput.value = item.pdfUrl; // Simpan URL lama
+            fileNameDisplay.textContent = 'Ganti file PDF (opsional)';
         } else {
             title.textContent = 'Tambah Pustaka Baru';
             idInput.value = '';
+            oldPdfUrlInput.value = '';
         }
         openModal(modal);
     }
 
-    function saveLibraryItem(e) {
+    async function saveLibraryItem(e) {
         e.preventDefault();
-        const { idInput, titleInput, authorInput, pdfUrlInput } = DOMElements.libraryFormModal;
-        const itemData = {
-            title: titleInput.value,
-            author: authorInput.value,
-            pdfUrl: pdfUrlInput.value
-        };
+        const { idInput, oldPdfUrlInput, titleInput, authorInput, pdfFileInput, uploadProgressContainer, uploadProgressBar, saveBtn } = DOMElements.libraryFormModal;
+        
+        const file = pdfFileInput.files[0];
+        const title = titleInput.value;
+        const author = authorInput.value;
+        const itemId = idInput.value;
 
-        if (idInput.value) { // Editing
-            db.collection("libraryItems").doc(idInput.value).set(itemData, { merge: true })
-                .then(() => closeModal(DOMElements.libraryFormModal.modal))
-                .catch(e => console.error("Error updating document: ", e));
-        } else { // Adding
-            db.collection("libraryItems").add(itemData)
-                .then(() => closeModal(DOMElements.libraryFormModal.modal))
-                .catch(e => console.error("Error adding document: ", e));
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Menyimpan...';
+
+        try {
+            let pdfUrl = oldPdfUrlInput.value; // Gunakan URL lama secara default jika edit
+
+            // 1. Jika ada file baru di-upload
+            if (file) {
+                uploadProgressContainer.style.display = 'block';
+                const storageRef = storage.ref(`library_pdfs/${Date.now()}_${file.name}`);
+                const uploadTask = storageRef.put(file);
+
+                // Dapatkan URL download setelah upload selesai
+                pdfUrl = await new Promise((resolve, reject) => {
+                    uploadTask.on('state_changed',
+                        (snapshot) => {
+                            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                            uploadProgressBar.style.width = progress + '%';
+                        }, 
+                        (error) => {
+                            console.error("Upload error: ", error);
+                            reject(error);
+                        }, 
+                        async () => {
+                            const downloadURL = await uploadTask.snapshot.ref.getDownloadURL();
+                            resolve(downloadURL);
+                        }
+                    );
+                });
+                
+                // (Opsional) Hapus file lama jika ini adalah edit dan file baru di-upload
+                if (oldPdfUrlInput.value) {
+                    try {
+                        const oldFileRef = storage.refFromURL(oldPdfUrlInput.value);
+                        await oldFileRef.delete();
+                    } catch (err) {
+                        console.warn("Gagal menghapus file lama, mungkin file tidak ada: ", err.message);
+                    }
+                }
+            } else if (!itemId) {
+                // Jika ini item BARU dan tidak ada file, tampilkan error
+                alert("Silakan pilih file PDF untuk di-upload.");
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Simpan';
+                return;
+            }
+
+            // 2. Simpan data (title, author, pdfUrl) ke Firestore
+            const itemData = {
+                title: title,
+                author: author,
+                pdfUrl: pdfUrl // URL baru dari Storage atau URL lama jika tidak ganti file
+            };
+
+            if (itemId) { // Editing
+                await db.collection("libraryItems").doc(itemId).set(itemData, { merge: true });
+            } else { // Adding
+                await db.collection("libraryItems").add(itemData);
+            }
+
+            closeModal(DOMElements.libraryFormModal.modal);
+
+        } catch (error) {
+            console.error("Error saving library item: ", error);
+            alert("Gagal menyimpan data. Lihat konsol untuk detail.");
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Simpan';
         }
     }
     
-    function deleteLibraryItem(itemId) {
-        db.collection("libraryItems").doc(itemId).delete()
-            .catch(e => console.error("Error deleting document: ", e));
+    async function deleteLibraryItem(itemId, pdfUrl) {
+        try {
+            // 1. Hapus file dari Firebase Storage
+            if (pdfUrl) {
+                 const fileRef = storage.refFromURL(pdfUrl);
+                 await fileRef.delete();
+            }
+            // 2. Hapus dokumen dari Firestore
+            await db.collection("libraryItems").doc(itemId).delete();
+
+        } catch (error) {
+             console.error("Error deleting item: ", error);
+             // Jika gagal hapus file storage (misal: file tidak ada), tetap hapus dari firestore
+             if (error.code === 'storage/object-not-found') {
+                await db.collection("libraryItems").doc(itemId).delete();
+             } else {
+                alert("Gagal menghapus. Lihat konsol untuk detail.");
+             }
+        }
     }
 
     // --- Modal Viewers (User-facing) ---
@@ -830,16 +1007,21 @@
             });
         });
         
-        // Search
+        // --- BARU: Search Event Listeners ---
         DOMElements.searchInput.addEventListener('input', e => {
             const query = e.target.value.toLowerCase();
-            const filteredNews = state.newsData.filter(news => 
-                news.title.toLowerCase().includes(query) || 
-                news.category.toLowerCase().includes(query)
-            );
+            const filteredNews = getRankedResults(query, state.newsData, 'title', 'category');
             populateGrid(DOMElements.searchResultsGrid, filteredNews, createNewsCard);
-            DOMElements.noResults.classList.toggle('hidden', filteredNews.length > 0);
+            DOMElements.noResults.classList.toggle('hidden', filteredNews.length > 0 || query.length === 0);
         });
+
+        DOMElements.librarySearchInput.addEventListener('input', e => {
+            const query = e.target.value.toLowerCase();
+            const filteredLibrary = getRankedResults(query, state.libraryData, 'title', 'author');
+            populateGrid(DOMElements.libraryGrid, filteredLibrary, createLibraryCard);
+            DOMElements.noLibraryResults.classList.toggle('hidden', filteredLibrary.length > 0 || query.length === 0);
+        });
+
 
         // Profile & Login/Logout
         DOMElements.profileButton.addEventListener('click', () => openModal(DOMElements.profileModal.modal));
@@ -871,7 +1053,7 @@
             const deleteLibraryBtn = e.target.closest('.delete-library-btn');
             if (deleteLibraryBtn) {
                 e.stopPropagation();
-                deleteLibraryItem(deleteLibraryBtn.dataset.id);
+                deleteLibraryItem(deleteLibraryBtn.dataset.id, deleteLibraryBtn.dataset.url);
                 return;
             }
             const articleContent = e.target.closest('.article-content');
@@ -895,6 +1077,15 @@
         DOMElements.libraryFormModal.form.addEventListener('submit', saveLibraryItem);
         DOMElements.libraryFormModal.cancelBtn.addEventListener('click', () => closeModal(DOMElements.libraryFormModal.modal));
 
+        // BARU: Event listener untuk input file
+        DOMElements.libraryFormModal.pdfFileInput.addEventListener('change', (e) => {
+            if (e.target.files[0]) {
+                DOMElements.libraryFormModal.fileNameDisplay.textContent = e.target.files[0].name;
+            } else {
+                DOMElements.libraryFormModal.fileNameDisplay.textContent = 'Belum ada file dipilih';
+            }
+        });
+
         // Close Viewers
         DOMElements.articleDetailModal.closeBtn.addEventListener('click', closeViewers);
         DOMElements.articleDetailModal.modal.addEventListener('click', (e) => e.target === DOMElements.articleDetailModal.modal && closeViewers());
@@ -905,34 +1096,27 @@
     
     // --- Initialization (DIUBAH) ---
     function initialize() {
-        // Hapus: Pengambilan data dari localStorage
         
-        // BARU: Listener status autentikasi (login/logout)
+        // Listener status autentikasi (login/logout)
         auth.onAuthStateChanged((user) => {
-            state.isLoggedIn = !!user; // !!user mengubah user object menjadi true, atau null/undefined menjadi false
+            state.isLoggedIn = !!user; 
             updateUIForAuthState();
-            
-            // Render grid hanya setelah status auth diketahui
-            // Ini memastikan tombol admin muncul/hilang dengan benar saat pertama kali memuat
-            renderAllGrids(); 
+            renderAllGrids(); // Render ulang semua grid untuk tampilkan/sembunyikan tombol admin
         });
 
-        // BARU: Listener realtime untuk data artikel
+        // Listener realtime untuk data artikel
         db.collection("articles")
-            // .orderBy("createdAt", "desc") // (Opsional) jika Anda menambahkan timestamp
             .onSnapshot((snapshot) => {
-                state.newsData = []; // Kosongkan data lokal
+                state.newsData = []; 
                 snapshot.forEach((doc) => {
-                    // Masukkan ID dokumen Firestore ke dalam objek data
                     state.newsData.push({ id: doc.id, ...doc.data() });
                 });
-                // Render ulang grid setiap kali data di database berubah
                 renderAllGrids();
             }, (error) => {
                 console.error("Error listening to articles: ", error);
             });
 
-        // BARU: Listener realtime untuk data pustaka
+        // Listener realtime untuk data pustaka
         db.collection("libraryItems")
             .onSnapshot((snapshot) => {
                 state.libraryData = [];
@@ -971,4 +1155,3 @@
 
 </body>
 </html>
-
